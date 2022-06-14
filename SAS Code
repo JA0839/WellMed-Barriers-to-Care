@@ -1,0 +1,493 @@
+/************************************************************************************																
+ *	Programmer(s): Jessie Ausman													                          *
+ *	Program Name: WellMed Report													                          *
+ *	Save Program/Log/Output: C:\Users\jessa\Desktop\WellMed					            		*
+ *	Save Data Files: C:\Users\jessa\Desktop\WellMed								                	*
+ ************************************************************************************/
+
+
+*******************************************************************
+						Read in Datasets
+*******************************************************************;
+
+*Import using proc import;
+
+*change variable names if needed;
+proc contents data=zip1 varnum;
+run;
+
+data zip2;
+	set zip1;
+	rename 	SocioNeeds_Index_ = SN_Index
+			County_Health_Ranking__ = Rank
+			Education1___individuals_25__hig = Edu1
+			Education2___individuals_25__bac = Edu2
+			Income1___Persons_in_Poverty = Income1
+			Income2__Median_Household_Income = Income2
+			Race1___White_alone = Race1
+			Race2___Black_alone = Race2
+			Race3___American_Indian_Alaska_N = Race3
+			Race4___Asian_alone = Race4
+			Race5___Native_Hawiian_Pacific_I = Race5
+			Race6__2__races = Race6
+			Age____65__years = Age
+			Sex____female = Sex
+			Ethnicity1___hispanic_or_latino = Eth1
+			Ethnicity2___not_hispanic_or_lat = Eth2
+			___Food1__Number_of_Households_R = Food
+			Food2__Food_Insecurity_Index_ = Insecure_Index
+			Life1__Combined_Life_Expectancy = Life1
+			Life2__Combined_Life_Expectancy = Life2;
+run;
+
+*******************************************************************
+					Convert Char to Num
+*******************************************************************;
+
+data zip3;
+	set zip2;
+				SN_Indexnum = INPUT(SN_Index, 20.);
+				Ranknum = INPUT(Rank, 20.);
+				Edu1num = INPUT(Edu1, PERCENT8.2);
+				Edu2num = INPUT(Edu2, PERCENT8.2);
+				Income1num = INPUT(Income1, PERCENT8.2);
+				Income2num = INPUT(Income2, Dollar10.);
+				Racenum1 = INPUT(Race1, PERCENT8.2);
+				Racenum2 = INPUT(Race2, PERCENT8.2);
+				Racenum3 = INPUT(Race3, PERCENT8.2);
+				Racenum4 = INPUT(Race4, PERCENT8.2);
+				Racenum5 = INPUT(Race5, PERCENT8.2);
+				Racenum6 = INPUT(Race6, PERCENT8.2);
+				Agenum = INPUT(Age, PERCENT8.2);
+				Sexnum = INPUT(Sex, PERCENT8.2);
+				Eth1num = INPUT(Eth1, PERCENT8.2);
+				Eth2num = INPUT(Eth2, PERCENT8.2);
+				Foodnum = INPUT(Food, 20.);
+				Insecure_Indexnum = INPUT(Insecure_Index, 20.);
+				Life1num = INPUT(Life1, 20.);
+				Life2num = INPUT(Life2, 20.);
+run;
+
+
+data zip4;
+	set zip3;
+		Label	SN_Indexnum = 'SocioNeeds Index by Zip Code'
+				Ranknum = 'County Health Ranking'
+				Edu1num = 'Proportion of Individuals 25+ with High School Degree'
+				Edu2num = 'Proportion of Individuals 25+ with Bachelors Degree'
+				Income1num = 'Proportion in Poverty'
+				Income2num = 'Median Household Income'
+				Racenum1 = 'Proportion White'
+				Racenum2 = 'Proportion Black'
+				Racenum3 = 'Proportion AI/AN'
+				Racenum4 = 'Proportion Asian'
+				Racenum5 = 'Proportion Native Hawaiian/Pacific Islander'
+				Racenum6 = 'Proportion Mixed (2+ Races)'
+				Agenum = 'Proportion 65+ years'
+				Sexnum = 'Proportion Female'
+				Eth1num = 'Proportion Hispanic/Latino'
+				Eth2num = 'Proportion Not Hispanic/Latino'
+				Foodnum = 'Number of Households Receiving SNAP by Zip Code'
+				Insecure_Indexnum = 'Food Insecurity Index by Zip Code'
+				Life1num = 'Combined Life Expectancy by Zip Code'
+				Life2num = 'Combined Life Expectancy by County';
+run;
+
+proc print data=zip4 (Obs=10) label;
+	var SN_Indexnum Ranknum Edu1num Edu2num Income1num Income2num Racenum1-Racenum6 Agenum Sexnum Eth1num Eth2num Foodnum Insecure_Indexnum Life1num Life2num;
+run;
+
+*delete extraneous rows;
+data zip5;
+	set zip4;
+	if missing(id) then delete;
+run;
+
+proc freq data=zip5;
+	table county/ missing;
+run;
+
+*include only selected Texas counties;
+data zip6;
+	set zip5;
+	if zip_code = 33844 then delete;
+	if zip_code = 80132 then delete;
+	if missing(county) then delete;
+	if county = "Bosque" then delete;
+	if county = "Bowie" then delete;
+	if county = "Collin" then delete;
+	if county = "Cooke" then delete;
+	if county = "Erath" then delete;
+	if county = "Gregg" then delete;
+	if county = "Llano" then delete;
+	if county = "McLenn" then delete;
+	if county = "Navarr" then delete;
+	if county = "Polk" then delete;
+	if county = "Travis" then delete;
+run;
+
+proc freq data=zip6;
+	table county/ missing;
+run;
+
+*******************************************************************
+						Create Weights
+*******************************************************************;
+
+*inverse probability weighting to account for differences in distributions;
+data zip_wt;
+	set zip6;
+	if county = "Dallas" then weight = 25/1429;
+	else if county = "Denton" then weight = 18/1429;
+	else if county = "Ellis" then weight = 4/1429;
+	else if county = "Hood" then weight = 16/1429;
+	else if county = "Johnso" then weight = 51/1429;
+	else if county = "Parker" then weight = 34/1429;
+	else if county = "Tarran" then weight = 1267/1429;
+	else if county = "Wise" then weight = 14/1429;
+	else if missing(county) then weight = .;
+run;
+
+proc freq data=zip_wt;
+	table county weight;
+run;
+
+data zip_wt1;
+	set zip_wt;
+	length county1 $ 15;
+	label county1 = "County";
+	if county = "Dallas" then county1 = "Dallas";
+	if county = "Denton" then county1 = "Denton";
+	if county = "Ellis" then county1 = "Ellis";
+	if county = "Hood" then county1 = "Hood";
+	if county = "Johnso" then county1 = "Johnson";
+	if county = "Parker" then county1 = "Parker";
+	if county = "Tarran" then county1 = "Tarrant";
+	if county = "Wise" then county1 = "Wise";
+run;
+
+proc freq data=zip_wt1;
+	tables county*county1;
+run;
+
+*******************************************************************
+			Find Avg For All Counties (Consider Weights)
+*******************************************************************;
+
+/*Weighted average Edu1*/
+proc sql;
+	create table wtavg_edu1 as
+	select sum(weight * Edu1num)/ sum(weight) as wt_edu1 from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_edu1;
+run;
+
+/*Weighted average Edu2*/
+proc sql;
+	create table wtavg_edu2 as
+	select sum(weight * Edu2num)/ sum(weight) as wt_edu2 from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_edu2;
+run;
+
+/*Weighted average Income1*/
+proc sql;
+	create table wtavg_income1 as
+	select sum(weight * Income1num)/ sum(weight) as wt_income1 from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_income1;
+run;
+
+
+/*Weighted average Income2*/
+proc sql;
+	create table wtavg_income2 as
+	select sum(weight * Income2num)/ sum(weight) as wt_income2 from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_income2;
+run;
+
+
+/*Weighted average Race1*/
+proc sql;
+	create table wtavg_race1 as
+	select sum(weight * Racenum1)/ sum(weight) as wt_race1 from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_race1;
+run;
+
+
+/*Weighted average Race2*/
+proc sql;
+	create table wtavg_race2 as
+	select sum(weight * Racenum2)/ sum(weight) as wt_race2 from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_race2;
+run;
+
+/*Weighted average Race3*/
+proc sql;
+	create table wtavg_race3 as
+	select sum(weight * Racenum3)/ sum(weight) as wt_race3 from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_race3;
+run;
+
+/*Weighted average Race4*/
+proc sql;
+	create table wtavg_race4 as
+	select sum(weight * Racenum4)/ sum(weight) as wt_race4 from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_race4;
+run;
+
+/*Weighted average Race5*/
+proc sql;
+	create table wtavg_race5 as
+	select sum(weight * Racenum5)/ sum(weight) as wt_race5 from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_race5;
+run;
+
+/*Weighted average Race6*/
+proc sql;
+	create table wtavg_race6 as
+	select sum(weight * Racenum6)/ sum(weight) as wt_race6 from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_race6;
+run;
+
+/*Weighted average Age*/
+proc sql;
+	create table wtavg_age as
+	select sum(weight * Agenum)/ sum(weight) as wt_age from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_age;
+run;
+
+/*Weighted average Sex*/
+proc sql;
+	create table wtavg_sex as
+	select sum(weight * sexnum)/ sum(weight) as wt_sex from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_sex;
+run;
+
+/*Weighted average Eth1*/
+proc sql;
+	create table wtavg_eth1 as
+	select sum(weight * eth1num)/ sum(weight) as wt_eth1 from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_eth1;
+run;
+
+/*Weighted average Eth2*/
+proc sql;
+	create table wtavg_eth2 as
+	select sum(weight * eth2num)/ sum(weight) as wt_eth2 from zip_wt;
+run;
+quit;
+
+proc print data=wtavg_eth2;
+run;
+
+
+*******************************************************************
+					Graphs and Distribution
+*******************************************************************;
+
+
+*graphically depict relationship between snavg and lifeex at county level;
+proc sort data=zip_wt1;
+	by county1;
+run;
+
+proc means data=zip_wt1;
+	var sn_indexnum;
+	by county1;
+run;
+
+proc univariate data=zip_wt1 all;
+	var sn_indexnum;
+	by county1;
+run;
+
+/*import snavg data using proc import csv*/
+
+*change county labels if needed;
+proc freq data=snavg;
+	tables county;
+run;
+
+*drop counties not included in sample;
+data snavg1;
+	set snavg;
+	label snavg = "Average SocioNeeds Index"
+		  Lifeex = "County-Level Life Expectancy";
+	if county = "Bosque" then delete;
+	if county = "Bowie" then delete;
+	if county = "Collin" then delete;
+	if county = "Cooke" then delete;
+	if county = "Erath" then delete;
+	if county = "Gregg" then delete;
+	if county = "Llano" then delete;
+	if county = "McLennan" then delete;
+	if county = "Navarro" then delete;
+	if county = "Polk" then delete;
+	if county = "Travis" then delete;
+run;
+
+proc freq data=snavg1;
+	tables county;
+run;
+
+proc sgplot data=snavg1;
+	title "Relationship between Average SocioNeeds Index and Life Expectancy";
+	scatter x=snavg y=lifeex / datalabel=county group=county;
+run;
+
+
+/*import MedSn data using proc import csv*/
+
+*change county labels if needed;
+proc freq data=MedSn;
+	tables county;
+run;
+
+proc contents data=MedSn varnum;
+run;
+
+data MedSn1;
+	set MedSn;
+	label MedSn = "Median SocioNeeds Index"
+		  LifeEx = "County-Level Life Expectancy";
+run;
+
+proc sgplot data=MedSn1;
+	title "Relationship between Median SocioNeeds Index and Life Expectancy";
+	scatter x=MedSn y=lifeex / datalabel=county group=county;
+run;
+
+/*Boxplot for SocioNeeds index by county*/
+proc sgplot data=zip_wt1;
+	vbox sn_indexnum/ group = county1;
+run;
+
+*******************************************************************
+				Correlation and Regression
+*******************************************************************;
+
+
+*statistical correlation between snavg and lifeex at county level;
+proc corr data=snavg1;
+	var snavg lifeex;
+run;
+
+proc corr data=Medsn1;
+	var Medsn lifeex;
+run;
+
+*/------------------------------------------------------------------------------------------------------------------------------------*/
+
+*regression between lifeex and sn index to predict change in lifeex per unit change in sn index;
+	/*STILL WORKING ON THIS*/
+proc reg data=zip_wt;
+	model Life1num = SN_Indexnum / vif;
+	weight weight;
+run;
+quit;
+
+data zip_wt_log;
+	set zip_wt;
+	loglife = log(life1num);
+run;
+
+/* Log transformation */
+proc reg data=zip_wt_log;
+	model Loglife = Sn_Indexnum;
+	weight weight;
+run;
+quit;
+
+
+/* Reg on County level using Median SN Index*/
+data zip_wt_reg2;
+	set zip_wt;
+	if county = "Dallas" then MedSn = 69.7;
+	if county = "Denton" then MedSn = 17.75;
+	if county = "Ellis" then MedSn = 37.75;
+	if county = "Hood" then MedSn = 54.4;
+	if county = "Johnso" then MedSn = 64.6;
+	if county = "Parker" then MedSn = 42.4;
+	if county = "Tarran" then MedSn = 71.5;
+	if county = "Wise" then MedSn = 62.45;
+run;
+
+proc freq data=zip_wt_reg2;
+	tables county*MedSn;
+run;
+
+proc reg data=zip_wt_reg2;
+	model Life2num = MedSn;
+	weight weight;
+run;
+
+/*try without weights?*/
+proc reg data=zip_wt;
+	model Life1num = SN_Indexnum / vif;
+	*weight weight;
+run;
+quit;
+
+/*panel by county*/
+proc sgpanel data=zip_wt1;
+	panelby county1;
+	reg x=Sn_indexnum y=life1num;
+run;
+
+/*Check correlation between SNIndex and Life expectancy at zip code level*/
+proc corr data=zip_wt;
+	var life1num sn_indexnum;
+run; 
+quit;
+
+*******************************************************************
+	Statistically significant Diff Lifex on County-Level?
+*******************************************************************;
+
+/*check to see if life expectancy is normally distributed*/
+proc univariate data=zip_wt1 all;
+	var life2num;
+run;
+
+/*non-normal - use non-parametric test for diff*/
+proc npar1way data=zip_wt1 wilcoxon dscf;
+	class county1;
+	var life2num;
+run;
